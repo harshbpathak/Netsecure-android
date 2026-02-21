@@ -82,7 +82,8 @@ object TrafficRepository {
                     appIcon = appIcon,
                     totalRequests = stat.numConnections,
                     totalBytesOut = stat.sentBytes,
-                    totalBytesIn = stat.rcvdBytes
+                    totalBytesIn = stat.rcvdBytes,
+                    uid = stat.uid
                 )
             }
         }
@@ -125,8 +126,7 @@ object TrafficRepository {
         if (existing != null) {
             _appTrafficMap[packageName] = existing.copy(
                 totalRequests = existing.totalRequests + 1,
-                totalBytesOut = existing.totalBytesOut + record.packetSize,
-                connections = existing.connections + record
+                totalBytesOut = existing.totalBytesOut + record.packetSize
             )
         } else {
             val appName = resolveAppName(context, packageName)
@@ -137,7 +137,7 @@ object TrafficRepository {
                 appIcon = appIcon,
                 totalRequests = 1,
                 totalBytesOut = record.packetSize.toLong(),
-                connections = listOf(record)
+                uid = record.uid
             )
         }
 

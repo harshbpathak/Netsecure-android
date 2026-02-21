@@ -12,5 +12,5 @@ data class AppTrafficInfo(
     val totalRequests: Int = 0,
     val totalBytesOut: Long = 0L,
     val totalBytesIn: Long = 0L,
-    val connections: List<ConnectionRecord> = emptyList()
+    val uid: Int = -1
 )

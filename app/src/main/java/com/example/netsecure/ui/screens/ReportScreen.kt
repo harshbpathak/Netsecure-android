@@ -122,14 +122,10 @@ private fun OverallSummary(appList: List<AppTrafficInfo>) {
 
             val totalRequests = appList.sumOf { it.totalRequests }
             val totalData = appList.sumOf { it.totalBytesOut }
-            val httpApps = appList.filter { info ->
-                info.connections.any { it.protocol == Protocol.HTTP }
-            }
 
             SummaryLine("Total apps communicating", "${appList.size}")
             SummaryLine("Total requests captured", "$totalRequests")
             SummaryLine("Total data transferred", formatBytes(totalData))
-            SummaryLine("Apps using plain HTTP", "${httpApps.size}")
         }
     }
 }
@@ -158,46 +154,28 @@ enum class Severity { HIGH, MEDIUM, LOW }
 private fun generateConcerns(appList: List<AppTrafficInfo>): List<PrivacyConcern> {
     val concerns = mutableListOf<PrivacyConcern>()
 
-    // Apps using plain HTTP (unencrypted)
-    val httpApps = appList.filter { info ->
-        info.connections.any { it.protocol == Protocol.HTTP }
-    }
-    for (app in httpApps) {
-        concerns.add(
-            PrivacyConcern(
-                title = "${app.appName} uses plain HTTP",
-                description = "This app is sending data over unencrypted HTTP, which can be intercepted.",
-                severity = Severity.HIGH
-            )
-        )
-    }
-
-    // Apps with large data transfers (>1MB)
-    val bigSenders = appList.filter { it.totalBytesOut > 1_000_000 }
+    // Apps with massive data transfers (>10MB)
+    val bigSenders = appList.filter { it.totalBytesOut > 10_000_000 }
     for (app in bigSenders) {
         concerns.add(
             PrivacyConcern(
                 title = "${app.appName} transferred ${formatBytes(app.totalBytesOut)}",
-                description = "Large data transfer detected. Review if this is expected.",
-                severity = Severity.MEDIUM
+                description = "Unusually high background data transfer detected. Tap the app to review connections.",
+                severity = Severity.HIGH
             )
         )
     }
-
-    // Apps with no HTTPS (all non-standard traffic)
-    val noHttpsApps = appList.filter { info ->
-        info.connections.none { it.protocol == Protocol.HTTPS } && info.totalRequests > 5
-    }
-    for (app in noHttpsApps) {
-        if (app !in httpApps) {
-            concerns.add(
-                PrivacyConcern(
-                    title = "${app.appName} — no HTTPS detected",
-                    description = "This app has not used HTTPS. Its traffic may be using custom or non-standard protocols.",
-                    severity = Severity.LOW
-                )
+    
+    // High connection frequency
+    val spammyApps = appList.filter { it.totalRequests > 1000 }
+    for (app in spammyApps) {
+        concerns.add(
+            PrivacyConcern(
+                title = "${app.appName} — High Request Rate",
+                description = "This app is making a suspicious amount of connections (${app.totalRequests} reqs).",
+                severity = Severity.MEDIUM
             )
-        }
+        )
     }
 
     return concerns
