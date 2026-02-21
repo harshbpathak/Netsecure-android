@@ -1,18 +1,17 @@
 # 🛡️ NetSecure
 
-**NetSecure** is an Android network analyzer app that monitors and captures real-time network traffic on your device using a local VPN service. It gives you full visibility into which apps are making network connections, where they're connecting to, and how much data they're using — all without requiring root access.
+**NetSecure** is an advanced Android network analyzer app that monitors and captures real-time network traffic on your device using a local VPN service. Powered by a highly-optimized native C++ backend and nDPI for Deep Packet Inspection, it gives you full visibility into which apps are making network connections, where they're connecting to, and how much data they're using — all without requiring root access.
 
 ---
 
 ## ✨ Features
 
-- **Real-Time Traffic Capture** — Intercepts and inspects TCP/UDP packets through a local VPN tunnel
-- **Per-App Traffic Breakdown** — See exactly which apps are sending and receiving data
-- **Connection Logging** — Detailed logs of every connection with destination IP, port, and protocol
-- **Dashboard Overview** — Clean, at-a-glance view of network activity across all apps
-- **App Detail View** — Drill into individual app traffic with connection-level detail
-- **Security Reports** — Generate reports of suspicious or unusual network behavior
-- **No Root Required** — Uses Android's VPN Service API for packet capture
+- **Real-Time Traffic Capture** — Intercepts and inspects TCP/UDP packets through a high-performance local VPN tunnel powered by a Custom Native C engine.
+- **Deep Packet Inspection (DPI)** — Uses nDPI for accurate protocol detection and traffic analysis.
+- **Per-App Traffic Breakdown** — See exactly which apps are sending and receiving data.
+- **Connection Logging** — Detailed logs of every connection with destination IP, port, and protocol.
+- **Dashboard Overview** — Clean, at-a-glance view of network activity across all apps.
+- **No Root Required** — Uses Android's VPN Service API combined with native packet processing.
 
 ---
 
@@ -20,11 +19,11 @@
 
 | Layer | Technology |
 |-------|------------|
-| **Language** | Kotlin |
+| **Language** | Kotlin (App layer), C/C++ (Native engine) |
 | **UI** | Jetpack Compose + Material 3 |
-| **Architecture** | MVVM (ViewModel + Repository) |
-| **Navigation** | Jetpack Navigation Compose |
-| **Network Capture** | Android VPN Service API |
+| **Architecture** | MVVM (ViewModel + Repository) + JNI Bridge |
+| **Packet Engine** | Custom native core (`zdtun`, `libpcap`) |
+| **DPI Engine** | nDPI |
 | **Min SDK** | Android 7.0 (API 24) |
 
 ---
@@ -32,38 +31,32 @@
 ## 📁 Project Structure
 
 ```
-app/src/main/java/com/example/netsecure/
-├── MainActivity.kt                  # Entry point
-├── data/
-│   ├── model/
-│   │   ├── AppTrafficInfo.kt        # Per-app traffic data model
-│   │   └── ConnectionRecord.kt      # Individual connection data model
-│   └── TrafficRepository.kt         # Data layer for traffic records
-├── navigation/
-│   └── NavGraph.kt                  # Navigation routes & graph
-├── service/
-│   ├── LocalVpnService.kt           # VPN service for packet capture
-│   ├── PacketParser.kt              # Raw packet parsing
-│   └── vpn/
-│       ├── ByteBufferPool.kt        # Efficient buffer management
-│       ├── Packet.kt                # Packet representation
-│       ├── TCB.kt                   # TCP Control Block
-│       ├── TCPInput.kt              # TCP downstream handler
-│       ├── TCPOutput.kt             # TCP upstream handler
-│       ├── UDPInput.kt              # UDP downstream handler
-│       └── UDPOutput.kt             # UDP upstream handler
-└── ui/
-    ├── screens/
-    │   ├── DashboardScreen.kt       # Main dashboard
-    │   ├── AppDetailScreen.kt       # Per-app detail view
-    │   └── ReportScreen.kt          # Security report view
-    ├── viewmodel/
-    │   ├── DashboardViewModel.kt    # Dashboard state management
-    │   └── AppDetailViewModel.kt    # App detail state management
-    └── theme/
-        ├── Color.kt
-        ├── Theme.kt
-        └── Type.kt
+app/src/main/
+├── java/com/example/netsecure/
+│   ├── MainActivity.kt                  # Entry point
+│   ├── CaptureService.kt                # VPN Service & JNI Bridge
+│   ├── NetSecureApp.kt                  # Application class
+│   ├── data/
+│   │   ├── ConnectionsRegister.kt       # High-performance ring buffer for native events
+│   │   └── TrafficRepository.kt         # Data layer for traffic records
+│   ├── model/                           # JNI-compatible data models
+│   │   ├── ConnectionDescriptor.kt      
+│   │   ├── CaptureStats.kt              
+│   │   └── PayloadChunk.kt              
+│   └── ui/
+│       ├── screens/                     # Compose UI screens
+│       ├── viewmodel/                   # State management
+│       └── theme/                       # Compose theming
+└── jni/
+    ├── core/                            # Main native capture engine
+    ├── common/                          # Shared native utilities
+    ├── pcapd/                           # libpcap daemon
+    └── third_party/                     # Third party C libraries
+submodules/
+├── nDPI/                                # Deep Packet Inspection library
+├── libpcap/                             # Packet capture library
+├── zdtun/                               # TUN interface networking
+└── MaxMind-DB-Reader-java/              # GeoIP resolution
 ```
 
 ---
@@ -72,27 +65,31 @@ app/src/main/java/com/example/netsecure/
 
 ### Prerequisites
 
-- **Android Studio** Ladybug or newer
+- **Android Studio** (Ladybug or newer recommended)
 - **JDK 17+**
-- **Android SDK** with API 35
+- **Android SDK** with API 36
+- **Android NDK** `28.2.13676358` (will be downloaded automatically by Gradle, but required for native build)
+- **CMake**
 
 ### Build & Run
 
-1. Clone the repository:
+1. Clone the repository with submodules:
    ```bash
-   git clone https://github.com/harshbpathak/Netsecure-android.git
+   git clone --recurse-submodules https://github.com/harshbpathak/Netsecure-android.git
    ```
-2. Open the project in Android Studio
-3. Sync Gradle and let dependencies download
-4. Run on a physical device or emulator (API 24+)
+   *(If you already cloned without submodules, run `git submodule update --init --recursive`)*
 
-> **Note:** VPN functionality works best on a physical device.
+2. Open the project in Android Studio.
+3. Sync Gradle and let dependencies download (including the NDK if not present).
+4. Run on a physical device or emulator (API 24+).
+
+> **Note:** VPN functionality and native routing work best on a physical Android device. Due to Android restrictions, the emulator might have limited networking capabilities depending on the setup.
 
 ---
 
 ## 📄 License
 
-This project is for educational and personal use.
+This project is licensed under the [MIT License](LICENSE).
 
 ---
 
