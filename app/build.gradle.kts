@@ -5,11 +5,8 @@ plugins {
 
 android {
     namespace = "com.example.netsecure"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+    ndkVersion = "28.2.13676358"
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.netsecure"
@@ -36,6 +33,26 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/jni/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
+
+    sourceSets {
+        getByName("main") {
+            java.srcDirs("src/main/java", "../../submodules/MaxMind-DB-Reader-java/src/main/java")
+        }
     }
 }
 
@@ -52,6 +69,10 @@ dependencies {
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
+
+    // Native architecture dependencies
+    implementation("com.google.code.gson:gson:2.11.0")
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

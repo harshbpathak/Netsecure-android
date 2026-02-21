@@ -75,7 +75,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun prepareAndStartVpn() {
-        val prepareIntent: Intent? = VpnService.prepare(this)
+        val prepareIntent: Intent? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.ICE_CREAM_SANDWICH) {
+            VpnService.prepare(this)
+        } else {
+            TODO("VERSION.SDK_INT < ICE_CREAM_SANDWICH")
+        }
         if (prepareIntent != null) {
             vpnPermissionLauncher.launch(prepareIntent)
         } else {

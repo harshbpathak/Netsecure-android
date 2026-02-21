@@ -159,7 +159,7 @@ private fun SummaryRow(appList: List<AppTrafficInfo>, isCapturing: Boolean) {
         )
         SummaryCard(
             label = "Data",
-            value = formatBytes(appList.sumOf { it.totalBytesOut }),
+            value = formatBytes(appList.sumOf { it.totalBytesOut + it.totalBytesIn }),
             color = NeonGreen,
             modifier = Modifier.weight(1f)
         )
@@ -253,7 +253,7 @@ private fun AppTrafficCard(app: AppTrafficInfo, onClick: () -> Unit) {
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    "${app.totalRequests} requests • ${formatBytes(app.totalBytesOut)}",
+                    "${app.totalRequests} requests • ↑${formatBytes(app.totalBytesOut)} ↓${formatBytes(app.totalBytesIn)}",
                     color = TextGray,
                     fontSize = 12.sp
                 )
