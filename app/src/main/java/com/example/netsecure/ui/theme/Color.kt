@@ -38,6 +38,18 @@ val HttpsGreen = Color(0xFF66BB6A)
 val TcpGray = Color(0xFF78909C)
 val UdpYellow = Color(0xFFFFEE58)
 
+// ── Traffic Category Colors ──
+val CategorySocial = Color(0xFF42A5F5)
+val CategoryStreaming = Color(0xFFAB47BC)
+val CategoryAds = Color(0xFFFF1744)
+val CategoryCloud = Color(0xFF00E5FF)
+val CategoryMessaging = Color(0xFF66BB6A)
+val CategoryGaming = Color(0xFFFFEE58)
+val CategoryShopping = Color(0xFFFF9100)
+val CategorySystem = Color(0xFF78909C)
+val CategoryCdn = Color(0xFF26A69A)
+val CategoryOther = Color(0xFF90A4AE)
+
 // ── Legacy references (kept for any generated theme code) ──
 val Purple80 = ElectricPurple
 val PurpleGrey80 = Color(0xFFCCC2DC)

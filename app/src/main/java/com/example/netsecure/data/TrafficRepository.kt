@@ -3,8 +3,8 @@ package com.example.netsecure.data
 import android.content.Context
 import android.content.pm.PackageManager
 import com.example.netsecure.data.model.AppTrafficInfo
-import com.example.netsecure.data.model.ConnectionRecord
-import com.example.netsecure.data.model.Protocol
+import com.example.netsecure.data.model.CategoryStats
+import com.example.netsecure.data.model.TrafficCategory
 import com.example.netsecure.model.CaptureStats
 import com.example.netsecure.model.ConnectionDescriptor
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,6 +15,9 @@ import java.util.concurrent.CopyOnWriteArrayList
 /**
  * Singleton repository that bridges the native capture engine with the UI.
  * Receives batched connection data from CaptureService's JNI callbacks.
+ *
+ * Enhanced with traffic classification: every connection is categorized
+ * into a TrafficCategory for data segregation.
  */
 object TrafficRepository {
 
@@ -40,6 +43,19 @@ object TrafficRepository {
     private val _logFlow = MutableStateFlow<List<String>>(emptyList())
     val logFlow: StateFlow<List<String>> = _logFlow.asStateFlow()
 
+    // ── Traffic Segregation ──
+
+    /** Global category breakdown (all apps combined) */
+    private val _globalCategoryMap = mutableMapOf<TrafficCategory, CategoryStats>()
+    private val _globalCategoryFlow = MutableStateFlow<Map<TrafficCategory, CategoryStats>>(emptyMap())
+    val globalCategoryFlow: StateFlow<Map<TrafficCategory, CategoryStats>> = _globalCategoryFlow.asStateFlow()
+
+    /** Per-app category breakdowns (packageName → category → stats) */
+    private val _appCategoryMap = mutableMapOf<String, MutableMap<TrafficCategory, CategoryStats>>()
+
+    /** Connection → category cache (incr_id → category) */
+    private val connectionCategoryCache = mutableMapOf<Int, TrafficCategory>()
+
     fun setCapturing(active: Boolean) {
         _isCapturing.value = active
     }
@@ -53,10 +69,15 @@ object TrafficRepository {
         _connectionsFlow.value = emptyList()
         _logLines.clear()
         _logFlow.value = emptyList()
+        _globalCategoryMap.clear()
+        _globalCategoryFlow.value = emptyMap()
+        _appCategoryMap.clear()
+        connectionCategoryCache.clear()
     }
 
     /**
      * Called from CaptureService when native code sends batched connection updates.
+     * Now also classifies each connection and builds category breakdowns.
      */
     @Synchronized
     fun onNativeUpdate(context: Context, register: ConnectionsRegister) {
@@ -66,12 +87,14 @@ object TrafficRepository {
         for (stat in allStats) {
             val packageName = resolvePackageName(context, stat.uid)
             val existing = _appTrafficMap[packageName]
+            val catBreakdown = _appCategoryMap[packageName] ?: emptyMap()
 
             if (existing != null) {
                 _appTrafficMap[packageName] = existing.copy(
                     totalRequests = stat.numConnections,
                     totalBytesOut = stat.sentBytes,
-                    totalBytesIn = stat.rcvdBytes
+                    totalBytesIn = stat.rcvdBytes,
+                    categoryBreakdown = catBreakdown.toMap()
                 )
             } else {
                 val appName = resolveAppName(context, packageName)
@@ -83,7 +106,8 @@ object TrafficRepository {
                     totalRequests = stat.numConnections,
                     totalBytesOut = stat.sentBytes,
                     totalBytesIn = stat.rcvdBytes,
-                    uid = stat.uid
+                    uid = stat.uid,
+                    categoryBreakdown = catBreakdown.toMap()
                 )
             }
         }
@@ -99,10 +123,86 @@ object TrafficRepository {
 
     /**
      * Refresh the connections list from the register.
-     * Called periodically from the ViewModel.
+     * Also classifies any new connections and updates category breakdowns.
      */
+    @Synchronized
     fun refreshConnections(register: ConnectionsRegister) {
-        _connectionsFlow.value = register.getAllConnections()
+        val allConns = register.getAllConnections()
+        _connectionsFlow.value = allConns
+
+        // Classify connections and rebuild category maps
+        rebuildCategoryMaps(allConns, register)
+    }
+
+    /**
+     * Classify all connections and rebuild global + per-app category maps.
+     */
+    private fun rebuildCategoryMaps(
+        connections: List<ConnectionDescriptor>,
+        register: ConnectionsRegister
+    ) {
+        _globalCategoryMap.clear()
+        _appCategoryMap.clear()
+
+        for (conn in connections) {
+            // Classify (use cache for performance)
+            val category = connectionCategoryCache.getOrPut(conn.incr_id) {
+                TrafficClassifier.classify(
+                    domain = conn.info.ifEmpty { conn.url.ifEmpty { conn.dst_ip } },
+                    l7proto = conn.l7proto,
+                    dstIp = conn.dst_ip,
+                    dstPort = conn.dst_port
+                )
+            }
+
+            // Re-check classification if info/l7proto was empty before but now has data
+            if (connectionCategoryCache[conn.incr_id] == TrafficCategory.OTHER) {
+                if (conn.info.isNotEmpty() || conn.l7proto.isNotEmpty()) {
+                    val reclassified = TrafficClassifier.classify(
+                        domain = conn.info.ifEmpty { conn.url.ifEmpty { conn.dst_ip } },
+                        l7proto = conn.l7proto,
+                        dstIp = conn.dst_ip,
+                        dstPort = conn.dst_port
+                    )
+                    if (reclassified != TrafficCategory.OTHER) {
+                        connectionCategoryCache[conn.incr_id] = reclassified
+                    }
+                }
+            }
+
+            val finalCategory = connectionCategoryCache[conn.incr_id] ?: TrafficCategory.OTHER
+            val bytes = conn.sent_bytes + conn.rcvd_bytes
+
+            // Update global category stats
+            val globalStat = _globalCategoryMap[finalCategory] ?: CategoryStats()
+            _globalCategoryMap[finalCategory] = CategoryStats(
+                requests = globalStat.requests + 1,
+                bytesOut = globalStat.bytesOut + conn.sent_bytes,
+                bytesIn = globalStat.bytesIn + conn.rcvd_bytes
+            )
+
+            // Resolve package for per-app breakdown
+            val uid = conn.uid
+            val packages = uidPackageCache[uid]
+            if (packages != null) {
+                val appCats = _appCategoryMap.getOrPut(packages) { mutableMapOf() }
+                val appStat = appCats[finalCategory] ?: CategoryStats()
+                appCats[finalCategory] = CategoryStats(
+                    requests = appStat.requests + 1,
+                    bytesOut = appStat.bytesOut + conn.sent_bytes,
+                    bytesIn = appStat.bytesIn + conn.rcvd_bytes
+                )
+            }
+        }
+
+        _globalCategoryFlow.value = _globalCategoryMap.toMap()
+    }
+
+    /**
+     * Get the category for a specific connection.
+     */
+    fun getCategoryForConnection(connId: Int): TrafficCategory {
+        return connectionCategoryCache[connId] ?: TrafficCategory.OTHER
     }
 
     /**
@@ -119,7 +219,7 @@ object TrafficRepository {
      * Legacy method: add a single connection record (for backward compatibility with old code).
      */
     @Synchronized
-    fun addConnection(context: Context, record: ConnectionRecord) {
+    fun addConnection(context: Context, record: com.example.netsecure.data.model.ConnectionRecord) {
         val packageName = resolvePackageName(context, record.uid)
         val existing = _appTrafficMap[packageName]
 

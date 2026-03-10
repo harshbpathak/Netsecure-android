@@ -12,5 +12,6 @@ data class AppTrafficInfo(
     val totalRequests: Int = 0,
     val totalBytesOut: Long = 0L,
     val totalBytesIn: Long = 0L,
-    val uid: Int = -1
+    val uid: Int = -1,
+    val categoryBreakdown: Map<TrafficCategory, CategoryStats> = emptyMap()
 )

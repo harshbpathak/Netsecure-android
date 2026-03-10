@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.netsecure.data.TrafficRepository
 import com.example.netsecure.data.model.AppTrafficInfo
+import com.example.netsecure.data.model.TrafficCategory
 import com.example.netsecure.model.ConnectionDescriptor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -16,13 +17,28 @@ class AppDetailViewModel : ViewModel() {
 
     private val _targetPackageName = MutableStateFlow<String?>(null)
 
+    /** Currently selected category filter for the detail screen (null = show all) */
+    private val _selectedCategory = MutableStateFlow<TrafficCategory?>(null)
+    val selectedCategory: StateFlow<TrafficCategory?> = _selectedCategory.asStateFlow()
+
     val appTraffic: StateFlow<AppTrafficInfo?> = combine(_targetPackageName, TrafficRepository.appTrafficFlow) { targetPkg, list ->
         list.find { it.packageName == targetPkg }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    val connections: StateFlow<List<ConnectionDescriptor>> = combine(appTraffic, TrafficRepository.connectionsFlow) { app, conns ->
+    val connections: StateFlow<List<ConnectionDescriptor>> = combine(
+        appTraffic,
+        TrafficRepository.connectionsFlow,
+        _selectedCategory
+    ) { app, conns, categoryFilter ->
         if (app != null && app.uid != -1) {
-            conns.filter { it.uid == app.uid }
+            val appConns = conns.filter { it.uid == app.uid }
+            if (categoryFilter != null) {
+                appConns.filter { conn ->
+                    TrafficRepository.getCategoryForConnection(conn.incr_id) == categoryFilter
+                }
+            } else {
+                appConns
+            }
         } else {
             emptyList()
         }
@@ -30,6 +46,10 @@ class AppDetailViewModel : ViewModel() {
 
     fun loadApp(packageName: String) {
         _targetPackageName.value = packageName
+    }
+
+    fun selectCategory(category: TrafficCategory?) {
+        _selectedCategory.value = if (_selectedCategory.value == category) null else category
     }
 
     fun refresh(packageName: String) {

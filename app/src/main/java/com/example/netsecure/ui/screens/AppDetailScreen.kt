@@ -9,9 +9,11 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -27,6 +29,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -35,7 +40,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
+import com.example.netsecure.data.TrafficRepository
 import com.example.netsecure.data.model.AppTrafficInfo
+import com.example.netsecure.data.model.CategoryStats
+import com.example.netsecure.data.model.TrafficCategory
 import com.example.netsecure.model.ConnectionDescriptor
 import com.example.netsecure.ui.theme.*
 import com.example.netsecure.ui.viewmodel.AppDetailViewModel
@@ -56,6 +64,7 @@ fun AppDetailScreen(
 
     val appTraffic by viewModel.appTraffic.collectAsState()
     val connections by viewModel.connections.collectAsState()
+    val selectedCategory by viewModel.selectedCategory.collectAsState()
 
     Scaffold(
         containerColor = DarkNavy,
@@ -107,10 +116,30 @@ fun AppDetailScreen(
                     AppHeaderCard(traffic, connections.size)
                 }
 
+                // Category breakdown for this app
+                if (traffic.categoryBreakdown.isNotEmpty()) {
+                    item {
+                        AppCategoryBreakdown(traffic.categoryBreakdown)
+                    }
+
+                    // Category filter chips
+                    item {
+                        DetailCategoryChipRow(
+                            breakdown = traffic.categoryBreakdown,
+                            selectedCategory = selectedCategory,
+                            onCategoryClick = { viewModel.selectCategory(it) }
+                        )
+                    }
+                }
+
                 item {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(4.dp))
                     Text(
-                        "Connections (${connections.size})",
+                        if (selectedCategory != null) {
+                            "${selectedCategory!!.label} Connections (${connections.size})"
+                        } else {
+                            "Connections (${connections.size})"
+                        },
                         color = TextGray,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold
@@ -124,6 +153,142 @@ fun AppDetailScreen(
         }
     }
 }
+
+// ── App Category Breakdown Card ──
+
+@Composable
+private fun AppCategoryBreakdown(breakdown: Map<TrafficCategory, CategoryStats>) {
+    val totalBytes = breakdown.values.sumOf { it.totalBytes }.coerceAtLeast(1)
+    val sorted = TrafficCategory.displayOrder.filter { breakdown.containsKey(it) }
+
+    Card(
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = CardSurface)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp)
+        ) {
+            Text(
+                "Traffic Categories",
+                color = TextWhite,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 14.sp
+            )
+            Spacer(Modifier.height(10.dp))
+
+            // Category rows (show each category with its proportion)
+            for (cat in sorted) {
+                val stats = breakdown[cat] ?: continue
+                val pct = ((stats.totalBytes * 100) / totalBytes).toInt()
+                val color = categoryColor(cat)
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(color)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        cat.label,
+                        color = TextGray,
+                        fontSize = 12.sp,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        "${stats.requests} reqs",
+                        color = TextDimmed,
+                        fontSize = 11.sp
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        formatBytes(stats.totalBytes),
+                        color = color,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "$pct%",
+                        color = TextDimmed,
+                        fontSize = 11.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ── Detail Category Chip Row ──
+
+@Composable
+private fun DetailCategoryChipRow(
+    breakdown: Map<TrafficCategory, CategoryStats>,
+    selectedCategory: TrafficCategory?,
+    onCategoryClick: (TrafficCategory) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        // "All" chip
+        FilterChip(
+            selected = selectedCategory == null,
+            onClick = { if (selectedCategory != null) onCategoryClick(selectedCategory) },
+            label = { Text("All", fontSize = 11.sp) },
+            colors = FilterChipDefaults.filterChipColors(
+                selectedContainerColor = CyberCyan.copy(alpha = 0.2f),
+                selectedLabelColor = CyberCyan,
+                containerColor = CardSurfaceLight,
+                labelColor = TextGray
+            ),
+            border = FilterChipDefaults.filterChipBorder(
+                borderColor = Color.Transparent,
+                selectedBorderColor = CyberCyan.copy(alpha = 0.5f),
+                enabled = true,
+                selected = selectedCategory == null
+            ),
+            shape = RoundedCornerShape(8.dp)
+        )
+
+        for (cat in TrafficCategory.displayOrder) {
+            if (!breakdown.containsKey(cat)) continue
+            val isSelected = selectedCategory == cat
+            val color = categoryColor(cat)
+
+            FilterChip(
+                selected = isSelected,
+                onClick = { onCategoryClick(cat) },
+                label = { Text(cat.label, fontSize = 11.sp) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = color.copy(alpha = 0.15f),
+                    selectedLabelColor = color,
+                    containerColor = CardSurfaceLight,
+                    labelColor = TextGray
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    borderColor = Color.Transparent,
+                    selectedBorderColor = color.copy(alpha = 0.5f),
+                    enabled = true,
+                    selected = isSelected
+                ),
+                shape = RoundedCornerShape(8.dp)
+            )
+        }
+    }
+}
+
+// ── Existing components (unchanged) ──
 
 @Composable
 private fun AppHeaderCard(traffic: AppTrafficInfo, connectionCount: Int) {
@@ -221,6 +386,9 @@ private fun ConnectionCard(conn: ConnectionDescriptor) {
         "${conn.dst_ip}:${conn.dst_port}"
     }
 
+    // Show category tag
+    val category = TrafficRepository.getCategoryForConnection(conn.incr_id)
+
     Card(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = if (isSuspicious) AlertRed.copy(alpha=0.15f) else CardSurfaceLight),
@@ -251,6 +419,18 @@ private fun ConnectionCard(conn: ConnectionDescriptor) {
                         overflow = TextOverflow.Ellipsis
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Category tag
+                        if (category != TrafficCategory.OTHER) {
+                            Text(
+                                category.label,
+                                color = categoryColor(category),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text("•", color = TextDimmed, fontSize = 10.sp)
+                            Spacer(Modifier.width(6.dp))
+                        }
                         Text(
                             formatTimestamp(conn.first_seen),
                             color = TextDimmed,
@@ -306,9 +486,10 @@ private fun ConnectionCard(conn: ConnectionDescriptor) {
                         .fillMaxWidth()
                         .padding(top = 12.dp)
                 ) {
-                    Divider(color = TextDimmed.copy(alpha = 0.2f), thickness = 1.dp)
+                    HorizontalDivider(color = TextDimmed.copy(alpha = 0.2f), thickness = 1.dp)
                     Spacer(Modifier.height(8.dp))
 
+                    DetailRow("Category", category.label)
                     DetailRow("Destination IP", conn.dst_ip)
                     DetailRow("Destination Port", "${conn.dst_port}")
                     if (conn.country.isNotEmpty() && conn.country != "Unknown") {
@@ -397,11 +578,7 @@ private fun formatStatus(status: Int): String {
 
 private fun formatTimestamp(timestampSecs: Long): String {
     if (timestampSecs <= 0) return "Just now"
-    // Native timestamps are often in milliseconds, but sometimes seconds.
-    // If it's less than a year 2000 in seconds, treat as seconds. 
-    // Usually PCAPdroid sends seconds * 1000 + ms for first_seen, meaning ms.
     val actualMs = if (timestampSecs < 10000000000L) timestampSecs * 1000 else timestampSecs
     val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
     return sdf.format(Date(actualMs))
 }
-
