@@ -25,6 +25,7 @@ val DarkNavy = Color(0xFF0A0E21)
 val DarkSurface = Color(0xFF0F1428)
 val CardSurface = Color(0xFF161B33)
 val CardSurfaceLight = Color(0xFF1C2240)
+val CardBorder = Color(0xFF242D4F)     // dark separator / bar-chart track color
 
 // Text
 val TextWhite = Color(0xFFECEFF1)

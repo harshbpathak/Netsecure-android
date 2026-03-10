@@ -2,8 +2,10 @@ package com.example.netsecure.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.netsecure.data.ThreatIntelRepository
 import com.example.netsecure.data.TrafficRepository
 import com.example.netsecure.data.model.AppTrafficInfo
+import com.example.netsecure.data.model.ThreatReport
 import com.example.netsecure.data.model.TrafficCategory
 import com.example.netsecure.model.ConnectionDescriptor
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,6 +45,18 @@ class AppDetailViewModel : ViewModel() {
             emptyList()
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /**
+     * Expose the full threat reports map so ConnectionCard composables can observe it
+     * and trigger recomposition when new IntelOwl results arrive.
+     * Each card does its own key-lookup from this map rather than calling
+     * ThreatIntelRepository directly — this is the correct Compose recomposition pattern.
+     */
+    val threatMap: StateFlow<Map<String, ThreatReport>> = ThreatIntelRepository.threatReportsFlow
+
+    /** Look up the best threat report for a connection (domain preferred over IP). */
+    fun getThreatForConnection(conn: ConnectionDescriptor): ThreatReport? =
+        ThreatIntelRepository.getThreatForConnection(conn)
 
     fun loadApp(packageName: String) {
         _targetPackageName.value = packageName

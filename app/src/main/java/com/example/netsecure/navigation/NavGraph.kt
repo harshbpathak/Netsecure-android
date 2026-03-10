@@ -9,14 +9,22 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.example.netsecure.ui.screens.AppDetailScreen
 import com.example.netsecure.ui.screens.DashboardScreen
+import com.example.netsecure.ui.screens.IntelOwlSettingsScreen
+import com.example.netsecure.ui.screens.LogsScreen
 import com.example.netsecure.ui.screens.ReportScreen
+import com.example.netsecure.ui.screens.ThreatIntelligenceScreen
 import com.example.netsecure.ui.viewmodel.AppDetailViewModel
 import com.example.netsecure.ui.viewmodel.DashboardViewModel
+import com.example.netsecure.ui.viewmodel.LogsViewModel
+import com.example.netsecure.ui.viewmodel.ThreatIntelViewModel
 
 object Routes {
     const val DASHBOARD = "dashboard"
     const val APP_DETAIL = "app_detail/{packageName}"
     const val REPORT = "report"
+    const val INTEL_OWL_SETTINGS = "intelowl_settings"
+    const val THREAT_INTELLIGENCE = "threat_intelligence"
+    const val LOGS = "logs"
 
     fun appDetail(packageName: String) = "app_detail/${java.net.URLEncoder.encode(packageName, "UTF-8")}"
 }
@@ -37,7 +45,13 @@ fun NetSecureNavGraph(
                 onAppClick = { pkg ->
                     navController.navigate(Routes.appDetail(pkg))
                 },
-                onPrepareVpn = onPrepareVpn
+                onPrepareVpn = onPrepareVpn,
+                onIntelOwlSettings = {
+                    navController.navigate(Routes.INTEL_OWL_SETTINGS)
+                },
+                onLogsClick = {
+                    navController.navigate(Routes.LOGS)
+                }
             )
         }
 
@@ -58,7 +72,32 @@ fun NetSecureNavGraph(
         }
 
         composable(Routes.REPORT) {
-            ReportScreen(viewModel = dashboardViewModel)
+            ReportScreen(
+                viewModel = dashboardViewModel,
+                onThreatIntelClick = { navController.navigate(Routes.THREAT_INTELLIGENCE) }
+            )
+        }
+
+        composable(Routes.INTEL_OWL_SETTINGS) {
+            IntelOwlSettingsScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Routes.THREAT_INTELLIGENCE) {
+            val threatVm: ThreatIntelViewModel = viewModel()
+            ThreatIntelligenceScreen(
+                onBack = { navController.popBackStack() },
+                vm = threatVm
+            )
+        }
+
+        composable(Routes.LOGS) {
+            val logsVm: LogsViewModel = viewModel()
+            LogsScreen(
+                onBack = { navController.popBackStack() },
+                vm = logsVm
+            )
         }
     }
 }

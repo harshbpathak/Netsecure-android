@@ -132,6 +132,9 @@ object TrafficRepository {
 
         // Classify connections and rebuild category maps
         rebuildCategoryMaps(allConns, register)
+
+        // Feed ThreatIntelRepository with updated connections for observable extraction
+        ThreatIntelRepository.onConnectionsUpdated(allConns)
     }
 
     /**

@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -42,7 +43,10 @@ import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.example.netsecure.data.TrafficRepository
 import com.example.netsecure.data.model.AppTrafficInfo
+import com.example.netsecure.data.model.AnalyzerResult
 import com.example.netsecure.data.model.CategoryStats
+import com.example.netsecure.data.model.ThreatReport
+import com.example.netsecure.data.model.ThreatSeverity
 import com.example.netsecure.data.model.TrafficCategory
 import com.example.netsecure.model.ConnectionDescriptor
 import com.example.netsecure.ui.theme.*
@@ -65,6 +69,7 @@ fun AppDetailScreen(
     val appTraffic by viewModel.appTraffic.collectAsState()
     val connections by viewModel.connections.collectAsState()
     val selectedCategory by viewModel.selectedCategory.collectAsState()
+    val threatMap by viewModel.threatMap.collectAsState()
 
     Scaffold(
         containerColor = DarkNavy,
@@ -147,7 +152,10 @@ fun AppDetailScreen(
                 }
 
                 items(connections.reversed().take(300), key = { it.incr_id }) { conn ->
-                    ConnectionCard(conn)
+                    val threat = remember(conn.incr_id, threatMap) {
+                        viewModel.getThreatForConnection(conn)
+                    }
+                    ConnectionCard(conn, threat)
                 }
             }
         }
@@ -370,13 +378,13 @@ private fun StatItem(label: String, value: String, color: Color) {
 }
 
 @Composable
-private fun ConnectionCard(conn: ConnectionDescriptor) {
+private fun ConnectionCard(conn: ConnectionDescriptor, threat: ThreatReport? = null) {
     var expanded by remember { mutableStateOf(false) }
 
     val isSuspicious = conn.is_blacklisted_domain || conn.is_blacklisted_ip
     val isBlocked = conn.is_blocked
     val l7str = if (conn.l7proto.isNotEmpty()) conn.l7proto else formatL4Proto(conn.ipproto)
-    
+
     // SNI / Info string to display
     val displayInfo = if (conn.info.isNotEmpty()) {
         conn.info
@@ -389,9 +397,19 @@ private fun ConnectionCard(conn: ConnectionDescriptor) {
     // Show category tag
     val category = TrafficRepository.getCategoryForConnection(conn.incr_id)
 
+    // Threat severity color
+    val threatColor = threat?.let { severityColor(it.severity) }
+
     Card(
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = if (isSuspicious) AlertRed.copy(alpha=0.15f) else CardSurfaceLight),
+        colors = CardDefaults.cardColors(
+            containerColor = when {
+                isSuspicious -> AlertRed.copy(alpha = 0.15f)
+                threat != null && threat.severity.ordinalScore >= ThreatSeverity.HIGH.ordinalScore -> AlertRed.copy(alpha = 0.10f)
+                threat != null && threat.severity == ThreatSeverity.MEDIUM -> AlertOrange.copy(alpha = 0.08f)
+                else -> CardSurfaceLight
+            }
+        ),
         modifier = Modifier
             .fillMaxWidth()
             .clickable { expanded = !expanded }
@@ -407,8 +425,20 @@ private fun ConnectionCard(conn: ConnectionDescriptor) {
             ) {
                 ProtocolChip(l7str)
 
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(8.dp))
 
+                // Threat shield icon
+                if (threat != null && threat.severity != ThreatSeverity.CLEAN) {
+                    Icon(
+                        Icons.Default.Shield,
+                        contentDescription = "Threat: ${threat.severity.displayName}",
+                        tint = threatColor ?: TextDimmed,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                }
+
+                Spacer(Modifier.width(4.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         displayInfo,
@@ -502,6 +532,14 @@ private fun ConnectionCard(conn: ConnectionDescriptor) {
                         icon = if (conn.encrypted_l7) Icons.Default.Lock else Icons.Default.LockOpen,
                         iconColor = if (conn.encrypted_l7) HttpsGreen else HttpOrange)
                     DetailRow("Status", formatStatus(conn.status))
+
+                    // IntelOwl threat detail section
+                    if (threat != null) {
+                        Spacer(Modifier.height(8.dp))
+                        HorizontalDivider(color = TextDimmed.copy(alpha = 0.2f), thickness = 1.dp)
+                        Spacer(Modifier.height(8.dp))
+                        ThreatDetailSection(threat)
+                    }
                 }
             }
         }
@@ -581,4 +619,104 @@ private fun formatTimestamp(timestampSecs: Long): String {
     val actualMs = if (timestampSecs < 10000000000L) timestampSecs * 1000 else timestampSecs
     val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
     return sdf.format(Date(actualMs))
+}
+
+// ── Threat Detail Section ──
+
+@Composable
+fun ThreatDetailSection(report: ThreatReport) {
+    val color = severityColor(report.severity)
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(
+                Icons.Default.Shield,
+                contentDescription = null,
+                tint = color,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                "IntelOwl: ${report.severity.displayName} Threat",
+                color = color,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                "Score: ${"%,.0f".format(report.overallScore * 100)}%",
+                color = color,
+                fontSize = 12.sp
+            )
+        }
+
+        // Score bar
+        Spacer(Modifier.height(6.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(3.dp))
+                .background(CardSurfaceLight)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(report.overallScore.coerceIn(0f, 1f))
+                    .fillMaxHeight()
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(3.dp))
+                    .background(color)
+            )
+        }
+
+        // Categories
+        if (report.categories.isNotEmpty()) {
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                report.categories.forEach { cat ->
+                    Surface(
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
+                        color = color.copy(alpha = 0.2f)
+                    ) {
+                        Text(
+                            cat,
+                            color = color,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Analyzer results
+        if (report.analyzerResults.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            report.analyzerResults.forEach { result ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        result.analyzerName,
+                        color = TextGray,
+                        fontSize = 11.sp,
+                        modifier = Modifier.width(120.dp)
+                    )
+                    val resultColor = severityColor(com.example.netsecure.data.model.ThreatSeverity.fromScore(result.score))
+                    Text(
+                        result.verdict,
+                        color = resultColor,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
 }

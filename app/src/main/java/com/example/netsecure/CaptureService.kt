@@ -18,7 +18,9 @@ import android.os.Looper
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import com.example.netsecure.data.ConnectionsRegister
+import com.example.netsecure.data.ThreatIntelRepository
 import com.example.netsecure.data.TrafficRepository
+import com.example.netsecure.logging.NetSecureLogger
 import com.example.netsecure.model.BlacklistDescriptor
 import com.example.netsecure.model.CaptureStats
 import com.example.netsecure.model.ConnectionDescriptor
@@ -132,6 +134,11 @@ class CaptureService : VpnService(), Runnable {
         // Allocate connections register
         connectionsRegister = ConnectionsRegister(MAX_CONNECTIONS)
 
+        // Force disable Private DNS (DNS-over-TLS) to ensure DNS queries fall back
+        // to plain port 53 and are captured by our VPN tunnel. This is required to 
+        // see domains and SNIs for Threat Intelligence.
+        setPrivateDnsBlocked(true)
+
         // VPN Setup — PCAPdroid architecture:
         // - MTU 10000 (large, avoids fragmentation)
         // - Split routes (0.0.0.0/1 + 128.0.0.0/1 instead of 0.0.0.0/0)
@@ -158,12 +165,14 @@ class CaptureService : VpnService(), Runnable {
         try {
             parcelFileDescriptor = builder.establish()
         } catch (e: Exception) {
+            NetSecureLogger.e(NetSecureLogger.TAG_VPN, "VPN establish failed: ${e.message}")
             Log.e(TAG, "VPN setup failed", e)
             stopSelf()
             return
         }
 
         if (parcelFileDescriptor == null) {
+            NetSecureLogger.e(NetSecureLogger.TAG_VPN, "VPN establish returned null — aborting")
             Log.e(TAG, "Failed to establish VPN — null PFD")
             stopSelf()
             return
@@ -171,6 +180,7 @@ class CaptureService : VpnService(), Runnable {
 
         TrafficRepository.setCapturing(true)
         TrafficRepository.clearAll()
+        ThreatIntelRepository.start()
 
         // Register network callback for underlying network detection
         registerNetworkCallback()
@@ -178,6 +188,7 @@ class CaptureService : VpnService(), Runnable {
         // Start native capture thread
         captureThread = Thread(this, "CaptureThread").apply { start() }
 
+        NetSecureLogger.i(NetSecureLogger.TAG_VPN, "VPN capture started — fd=${parcelFileDescriptor!!.fd} model=${Build.MODEL}")
         Log.i(TAG, "Native capture started with fd=${parcelFileDescriptor!!.fd}")
     }
 
@@ -206,7 +217,9 @@ class CaptureService : VpnService(), Runnable {
     }
 
     private fun stopCapture() {
+        NetSecureLogger.i(NetSecureLogger.TAG_VPN, "VPN capture stopping")
         TrafficRepository.setCapturing(false)
+        ThreatIntelRepository.stop()
 
         if (captureThread != null) {
             stopPacketLoop()

@@ -2,6 +2,8 @@ package com.example.netsecure
 
 import android.app.Application
 import android.util.Log
+import com.example.netsecure.logging.NetSecureLogger
+import com.example.netsecure.network.IntelOwlConfig
 
 /**
  * Application class for NetSecure.
@@ -20,6 +22,8 @@ class NetSecureApp : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
-        Log.i(TAG, "NetSecure application initialized")
+        NetSecureLogger.init(this)           // start file logger before anything else
+        IntelOwlConfig.init(this)
+        NetSecureLogger.i(NetSecureLogger.TAG_SYSTEM, "NetSecure application started")
     }
 }

@@ -1,5 +1,6 @@
 package com.example.netsecure.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -26,15 +27,23 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.netsecure.data.model.AppTrafficInfo
 import com.example.netsecure.data.model.CategoryStats
+import com.example.netsecure.data.model.ScanStatus
+import com.example.netsecure.data.model.ThreatAlert
+import com.example.netsecure.data.model.ThreatSeverity
+import com.example.netsecure.data.model.ThreatSummary
 import com.example.netsecure.data.model.TrafficCategory
+import com.example.netsecure.network.IntelOwlConfig
 import com.example.netsecure.ui.theme.*
 import com.example.netsecure.ui.viewmodel.DashboardViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ReportScreen(viewModel: DashboardViewModel) {
+fun ReportScreen(viewModel: DashboardViewModel, onThreatIntelClick: () -> Unit = {}) {
     val appList by viewModel.appTrafficList.collectAsState()
     val categoryBreakdown by viewModel.globalCategoryBreakdown.collectAsState()
+    val threatSummary by viewModel.threatSummary.collectAsState()
+    val threatAlerts by viewModel.threatAlerts.collectAsState()
+    val scanStatus by viewModel.scanStatus.collectAsState()
 
     Scaffold(
         containerColor = DarkNavy,
@@ -84,6 +93,99 @@ fun ReportScreen(viewModel: DashboardViewModel) {
                 if (categoryBreakdown.isNotEmpty()) {
                     item { DataCategoriesCard(categoryBreakdown) }
                 }
+
+                // ── Threat Intelligence Section ──
+                item {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable { onThreatIntelClick() }
+                            .padding(top = 4.dp, bottom = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Threat Intelligence",
+                            color = if (threatSummary.critical > 0 || threatSummary.high > 0) AlertRed else CyberCyan,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text("›", color = CyberCyan, fontSize = 20.sp, fontWeight = FontWeight.Light)
+                    }
+                }
+                item {
+                    val configured = IntelOwlConfig.isConfigured()
+                    val cardModifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onThreatIntelClick() }
+                    when {
+                        threatSummary.total > 0 -> Box(cardModifier) {
+                            ThreatSummaryCard(
+                                summary = threatSummary,
+                                status = scanStatus,
+                                onSettingsClick = {}
+                            )
+                        }
+                        configured -> Card(
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.cardColors(containerColor = CardSurface),
+                            modifier = cardModifier
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Info, contentDescription = null,
+                                    tint = CyberCyan, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(10.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        when (scanStatus) {
+                                            ScanStatus.SCANNING -> "Scanning in progress…"
+                                            else -> "IntelOwl configured — waiting for traffic"
+                                        },
+                                        color = TextWhite, fontSize = 13.sp, fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        "Tap to view threat intelligence history",
+                                        color = TextDimmed, fontSize = 12.sp
+                                    )
+                                }
+                                Text("›", color = CyberCyan, fontSize = 18.sp, fontWeight = FontWeight.Light)
+                            }
+                        }
+                        else -> Card(
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.cardColors(containerColor = CardSurface)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Info, contentDescription = null,
+                                    tint = TextDimmed, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(10.dp))
+                                Column {
+                                    Text("IntelOwl not configured", color = TextGray,
+                                        fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                    Text("Tap the ⚙️ gear icon in Dashboard Settings to set up IntelOwl",
+                                        color = TextDimmed, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+                // Active alerts in report
+                val reportAlerts = threatAlerts.filter { !it.isDismissed() }
+                if (reportAlerts.isNotEmpty()) {
+                    item {
+                        Text("Active Alerts (${reportAlerts.size})", color = AlertRed, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    }
+                    items(reportAlerts.take(5)) { alert ->
+                        ThreatAlertBanner(alert = alert, onDismiss = {})
+                    }
+                }
+
 
                 // Privacy concerns
                 val concerns = generateConcerns(appList, categoryBreakdown)
