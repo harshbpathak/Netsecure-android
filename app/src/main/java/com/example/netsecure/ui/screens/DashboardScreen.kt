@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.GppBad
 import androidx.compose.material.icons.filled.GppGood
 import androidx.compose.material.icons.filled.GppMaybe
@@ -36,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -74,6 +76,7 @@ fun DashboardScreen(
     val threatAlerts by viewModel.threatAlerts.collectAsState()
     val scanStatus by viewModel.scanStatus.collectAsState()
     val threatMap by viewModel.threatReports.collectAsState()
+    val context = LocalContext.current
 
     // Filter app list by selected category
     val filteredAppList = if (selectedCategory != null) {
@@ -224,16 +227,36 @@ fun DashboardScreen(
 
                 // App list header
                 item {
-                    Text(
-                        if (selectedCategory != null) {
-                            "${selectedCategory!!.label} — ${filteredAppList.size} apps"
-                        } else {
-                            "Apps Detected"
-                        },
-                        color = TextGray,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            if (selectedCategory != null) {
+                                "${selectedCategory!!.label} — ${filteredAppList.size} apps"
+                            } else {
+                                "Apps Detected"
+                            },
+                            color = TextGray,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+
+                        if (selectedCategory == null && filteredAppList.isNotEmpty()) {
+                            IconButton(
+                                onClick = { viewModel.exportConnectionsCsv(context) },
+                                modifier = Modifier.size(24.dp) // Make it a bit smaller so it fits nicely
+                            ) {
+                                Icon(
+                                    Icons.Default.Download,
+                                    contentDescription = "Download CSV",
+                                    tint = CyberCyan,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
                 }
 
                 // App cards
