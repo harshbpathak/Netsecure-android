@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.GppBad
@@ -109,6 +110,14 @@ fun DashboardScreen(
                     }
                 },
                 actions = {
+                    // Debug: Test Signature Scanner
+                    IconButton(onClick = { viewModel.testSignatureScanner() }) {
+                        Icon(
+                            Icons.Default.BugReport,
+                            contentDescription = "Test Signature Scanner",
+                            tint = AlertOrange
+                        )
+                    }
                     // Logs viewer button
                     IconButton(onClick = onLogsClick) {
                         Icon(

@@ -5,6 +5,7 @@ import android.net.VpnService
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.netsecure.CaptureService
+import com.example.netsecure.data.SignatureScanner
 import com.example.netsecure.data.ThreatIntelRepository
 import com.example.netsecure.data.TrafficRepository
 import com.example.netsecure.data.model.AppTrafficInfo
@@ -69,6 +70,10 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun dismissThreatAlert(alert: ThreatAlert) {
         ThreatIntelRepository.dismissAlert(alert)
+    }
+
+    fun testSignatureScanner() {
+        SignatureScanner.fireTestSignature()
     }
 
     /**

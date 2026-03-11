@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.*
@@ -540,6 +541,11 @@ private fun ConnectionCard(conn: ConnectionDescriptor, threat: ThreatReport? = n
                         Spacer(Modifier.height(8.dp))
                         ThreatDetailSection(threat)
                     }
+
+                    // Payload Chunk View
+                    if (!conn.payload_chunks.isNullOrEmpty()) {
+                        PayloadDetailSection(conn)
+                    }
                 }
             }
         }
@@ -718,5 +724,60 @@ fun ThreatDetailSection(report: ThreatReport) {
                 }
             }
         }
+    }
+}
+
+// ── Payload View Section ──
+
+@Composable
+fun PayloadDetailSection(conn: ConnectionDescriptor) {
+    val chunks = conn.payload_chunks
+    if (chunks.isNullOrEmpty()) return
+
+    Spacer(Modifier.height(8.dp))
+    HorizontalDivider(color = TextDimmed.copy(alpha = 0.2f), thickness = 1.dp)
+    Spacer(Modifier.height(8.dp))
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Default.Code, contentDescription = null, tint = CyberCyan, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(6.dp))
+        Text("Payload Chunks (${chunks.size})", color = CyberCyan, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+    }
+
+    Spacer(Modifier.height(6.dp))
+    
+    // Display max 3 chunks to prevent massive UI lag
+    val displayChunks = chunks.take(3)
+    for ((index, chunk) in displayChunks.withIndex()) {
+        val payloadStr = String(chunk.data, Charsets.UTF_8).take(250) // limit size
+        val cleanedPayload = payloadStr.replace(Regex("[\\x00-\\x1F&&[^\r\n\t]]"), ".") // Replace unprintable chars
+        
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = DarkNavy.copy(alpha = 0.5f),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+        ) {
+            Column(modifier = Modifier.padding(8.dp)) {
+                Text(
+                    text = "Chunk ${index + 1} (${chunk.data.size} bytes) - Pkt Type: ${chunk.type}",
+                    color = TextGray,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = cleanedPayload.ifBlank { "<Binary or Empty Data>" },
+                    color = NeonGreen,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    fontSize = 10.sp,
+                    maxLines = 10,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+    
+    if (chunks.size > 3) {
+        Text("... and ${chunks.size - 3} more chunks", color = TextDimmed, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp))
     }
 }

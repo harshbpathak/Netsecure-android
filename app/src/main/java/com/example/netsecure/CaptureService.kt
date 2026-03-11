@@ -386,7 +386,7 @@ class CaptureService : VpnService(), Runnable {
 
     @Suppress("unused") fun isVpnCapture(): Int = 1
     @Suppress("unused") fun isPcapFileCapture(): Int = 0
-    @Suppress("unused") fun getPayloadMode(): Int = 0 // PAYLOAD_MODE_NONE
+    @Suppress("unused") fun getPayloadMode(): Int = 2 // PAYLOAD_MODE_FULL
     @Suppress("unused") fun pcapDumpEnabled(): Int = 0
     @Suppress("unused") fun dumpExtensionsEnabled(): Int = 0
     @Suppress("unused") fun isPcapngEnabled(): Int = 0

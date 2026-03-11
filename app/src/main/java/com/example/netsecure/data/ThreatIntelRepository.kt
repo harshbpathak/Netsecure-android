@@ -120,7 +120,9 @@ object ThreatIntelRepository {
         dispatcherJob = null
         pollerJob = null
         _scanStatusFlow.value = ScanStatus.IDLE
+        SignatureScanner.clear()
         Log.i(TAG, "ThreatIntelRepository stopped")
+        NetSecureLogger.i(NetSecureLogger.TAG_THREAT, "ThreatIntelRepository stopped")
     }
 
     // ── Observable Extraction (called by TrafficRepository) ──
@@ -133,6 +135,9 @@ object ThreatIntelRepository {
      * calls TrafficRepository.refreshConnections(), which is the JNI callback thread.
      */
     fun onConnectionsUpdated(connections: List<ConnectionDescriptor>) {
+        // First run the purely local lightweight signature scanner to check payloads
+        SignatureScanner.scan(connections)
+
         if (!IntelOwlConfig.isConfigured()) return
 
         for (conn in connections) {
@@ -576,6 +581,21 @@ object ThreatIntelRepository {
         _threatSummaryFlow.value = ThreatSummary()
         ScanQueue.clear()
         ThreatCache.clear()
+    }
+
+    /**
+     * Called by SignatureScanner when a local payload regex matches.
+     * Injects the threat directly into the active flow and triggers alerts.
+     */
+    fun injectSignatureThreat(report: ThreatReport, uid: Int) {
+        val packageName = TrafficRepository.getTrafficForApp("uid:$uid")?.packageName ?: "uid:$uid"
+        val existing = reportsMutable[report.observable]
+        
+        // Merge if new or more severe
+        if (existing == null || report.severity.ordinalScore > existing.severity.ordinalScore) {
+            NetSecureLogger.w(NetSecureLogger.TAG_THREAT, "Injecting Signature Threat for ${report.observable} (Severity: ${report.severity.name})")
+            storeReport(report, setOf(packageName))
+        }
     }
 
     // ── Utilities ──
