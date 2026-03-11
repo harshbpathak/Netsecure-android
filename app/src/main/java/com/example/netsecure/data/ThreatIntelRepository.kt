@@ -13,6 +13,8 @@ import com.example.netsecure.logging.NetSecureLogger
 import com.example.netsecure.network.IntelOwlConfig
 import com.example.netsecure.network.model.AvailabilityRequest
 import com.example.netsecure.network.model.MultiObservableRequest
+import com.example.netsecure.notification.EmailAlertSender
+import com.example.netsecure.notification.ThreatNotificationManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -530,6 +532,14 @@ object ThreatIntelRepository {
             if (existing.none { it.alertId == alert.alertId }) {
                 existing.add(0, alert) // prepend (newest first)
                 _threatAlertsFlow.value = existing
+            }
+
+            // ── Persistent Android notification (heads-up, ongoing) ──
+            ThreatNotificationManager.showThreatNotification(alert)
+
+            // ── Email notification (non-blocking IO) ──
+            scope.launch(Dispatchers.IO) {
+                EmailAlertSender.sendAlertEmail(alert)
             }
         }
 

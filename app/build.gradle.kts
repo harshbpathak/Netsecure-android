@@ -40,6 +40,20 @@ android {
         jniLibs {
             useLegacyPackaging = true
         }
+        resources {
+            excludes += listOf(
+                "META-INF/LICENSE.md",
+                "META-INF/LICENSE.txt",
+                "META-INF/NOTICE.md",
+                "META-INF/NOTICE.txt",
+                "META-INF/LICENSE",
+                "META-INF/NOTICE",
+                "META-INF/mailcap",
+                "META-INF/mimetypes.default",
+                "META-INF/gm_LICENSE",
+                "META-INF/*.kotlin_module"
+            )
+        }
     }
 
     externalNativeBuild {
@@ -84,6 +98,10 @@ dependencies {
 
     // ── Encrypted SharedPreferences (API token storage) ──
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
+    // ── JavaMail for SMTP email notifications ──
+    implementation("com.sun.mail:android-mail:1.6.7")
+    implementation("com.sun.mail:android-activation:1.6.7")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

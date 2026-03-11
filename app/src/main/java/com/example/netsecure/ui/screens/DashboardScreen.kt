@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.GppBad
 import androidx.compose.material.icons.filled.GppGood
 import androidx.compose.material.icons.filled.GppMaybe
@@ -67,6 +68,7 @@ fun DashboardScreen(
     onAppClick: (String) -> Unit,
     onPrepareVpn: () -> Unit,
     onIntelOwlSettings: () -> Unit = {},
+    onEmailSettings: () -> Unit = {},
     onLogsClick: () -> Unit = {}
 ) {
     val appList by viewModel.appTrafficList.collectAsState()
@@ -132,6 +134,14 @@ fun DashboardScreen(
                             Icons.Default.Settings,
                             contentDescription = "IntelOwl Settings",
                             tint = if (scanStatus == ScanStatus.SCANNING) CyberCyan else TextGray
+                        )
+                    }
+                    // Email Settings button
+                    IconButton(onClick = onEmailSettings) {
+                        Icon(
+                            Icons.Default.Email,
+                            contentDescription = "Email Settings",
+                            tint = TextGray
                         )
                     }
                     if (appList.isNotEmpty()) {

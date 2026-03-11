@@ -1,16 +1,25 @@
 package com.example.netsecure.data
 
 import com.example.netsecure.data.model.AnalyzerResult
+import com.example.netsecure.data.model.ThreatAlert
 import com.example.netsecure.data.model.ThreatReport
 import com.example.netsecure.data.model.ThreatSeverity
 import com.example.netsecure.logging.NetSecureLogger
 import com.example.netsecure.model.ConnectionDescriptor
+import com.example.netsecure.notification.EmailAlertSender
+import com.example.netsecure.notification.ThreatNotificationManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /**
  * Scans unencrypted or decrypted connection payload chunks for malicious signatures.
  * This is an MVP demonstrating local Intrusion Detection System (IDS) capabilities.
  */
 object SignatureScanner {
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     data class ThreatSignature(
         val id: String,
@@ -143,6 +152,7 @@ object SignatureScanner {
 
     private fun reportThreat(conn: ConnectionDescriptor, sig: ThreatSignature, matchSnippet: String) {
         val observable = conn.info.ifEmpty { conn.url.ifEmpty { conn.dst_ip } }.ifEmpty { "Connection \n${conn.incr_id}" }
+        val packageName = TrafficRepository.getTrafficForApp("uid:${conn.uid}")?.packageName ?: "uid:${conn.uid}"
 
         val normalizedScore = when (sig.severity) {
             ThreatSeverity.CRITICAL -> 0.95f
@@ -172,6 +182,15 @@ object SignatureScanner {
 
         // Inject this report into the IntelOwl ThreatIntelRepository so it alerts the user
         ThreatIntelRepository.injectSignatureThreat(report, conn.uid)
+
+        // ── Notify for ALL IDS signature matches (regardless of severity) ──
+        val alert = ThreatAlert(
+            observable = observable,
+            associatedPackages = listOf(packageName),
+            report = report
+        )
+        ThreatNotificationManager.showThreatNotification(alert)
+        scope.launch { EmailAlertSender.sendAlertEmail(alert) }
     }
 
     /**

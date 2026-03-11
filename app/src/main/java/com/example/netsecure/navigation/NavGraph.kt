@@ -9,6 +9,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.example.netsecure.ui.screens.AppDetailScreen
 import com.example.netsecure.ui.screens.DashboardScreen
+import com.example.netsecure.ui.screens.EmailSettingsScreen
 import com.example.netsecure.ui.screens.IntelOwlSettingsScreen
 import com.example.netsecure.ui.screens.LogsScreen
 import com.example.netsecure.ui.screens.ReportScreen
@@ -24,6 +25,7 @@ object Routes {
     const val REPORT = "report"
     const val INTEL_OWL_SETTINGS = "intelowl_settings"
     const val THREAT_INTELLIGENCE = "threat_intelligence"
+    const val EMAIL_SETTINGS = "email_settings"
     const val LOGS = "logs"
 
     fun appDetail(packageName: String) = "app_detail/${java.net.URLEncoder.encode(packageName, "UTF-8")}"
@@ -48,6 +50,9 @@ fun NetSecureNavGraph(
                 onPrepareVpn = onPrepareVpn,
                 onIntelOwlSettings = {
                     navController.navigate(Routes.INTEL_OWL_SETTINGS)
+                },
+                onEmailSettings = {
+                    navController.navigate(Routes.EMAIL_SETTINGS)
                 },
                 onLogsClick = {
                     navController.navigate(Routes.LOGS)
@@ -80,6 +85,12 @@ fun NetSecureNavGraph(
 
         composable(Routes.INTEL_OWL_SETTINGS) {
             IntelOwlSettingsScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Routes.EMAIL_SETTINGS) {
+            EmailSettingsScreen(
                 onBack = { navController.popBackStack() }
             )
         }

@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -16,6 +17,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.ParcelFileDescriptor
+import com.example.netsecure.notification.ThreatNotificationManager
 import android.util.Log
 import com.example.netsecure.data.ConnectionsRegister
 import com.example.netsecure.data.ThreatIntelRepository
@@ -122,7 +124,7 @@ class CaptureService : VpnService(), Runnable {
     private fun startCapture() {
         if (captureThread != null) return
 
-        createNotificationChannel()
+        createNotificationChannels()
         startForeground(NOTIFICATION_ID, buildNotification())
 
         // Init platform info for PCAP metadata
@@ -475,12 +477,30 @@ class CaptureService : VpnService(), Runnable {
 
     // ──── Notification ────
 
-    private fun createNotificationChannel() {
+    private fun createNotificationChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
+            val nm = getSystemService(NotificationManager::class.java)
+
+            // VPN capture channel (low priority, persistent)
+            val vpnChannel = NotificationChannel(
                 CHANNEL_ID, "NetSecure VPN", NotificationManager.IMPORTANCE_LOW
             ).apply { description = "Shows when NetSecure is capturing traffic" }
-            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+            nm.createNotificationChannel(vpnChannel)
+
+            // Threat alerts channel (high priority, heads-up)
+            val threatChannel = NotificationChannel(
+                ThreatNotificationManager.THREAT_CHANNEL_ID,
+                "Threat Alerts",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Critical security alerts from threat detection and IDS"
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 300, 200, 300)
+                enableLights(true)
+                lightColor = Color.RED
+                setBypassDnd(true)
+            }
+            nm.createNotificationChannel(threatChannel)
         }
     }
 
