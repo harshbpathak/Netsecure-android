@@ -313,6 +313,7 @@ fun EmailSettingsScreen(onBack: () -> Unit) {
                                         EmailAlertSender.sendTestEmail()
                                     }
                                     testStatus = if (result.contains("success", ignoreCase = true)) {
+                                        enabled = true // auto-enable after successful test
                                         EmailTestStatus.Success(result)
                                     } else {
                                         EmailTestStatus.Failure(result)

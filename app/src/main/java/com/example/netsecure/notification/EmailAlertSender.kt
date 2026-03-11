@@ -45,13 +45,13 @@ object EmailAlertSender {
     suspend fun sendAlertEmail(alert: ThreatAlert) {
         if (!EmailConfig.isConfigured()) return
 
-        // Check trigger conditions
+        // Check trigger conditions — send if ANY enabled trigger matches
         val isHighCritical = alert.report.severity.ordinalScore >= ThreatSeverity.HIGH.ordinalScore
         val isSignature = alert.report.classification == "payload_signature"
 
-        if (isHighCritical && !EmailConfig.enableForHighCritical) return
-        if (isSignature && !EmailConfig.enableForIds) return
-        if (!isHighCritical && !isSignature) return
+        val shouldSend = (isHighCritical && EmailConfig.enableForHighCritical) ||
+                         (isSignature && EmailConfig.enableForIds)
+        if (!shouldSend) return
 
         // Cooldown check
         val now = System.currentTimeMillis()

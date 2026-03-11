@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -40,6 +41,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.example.netsecure.data.TrafficRepository
@@ -92,6 +94,18 @@ fun AppDetailScreen(
                             contentDescription = "Back",
                             tint = CyberCyan
                         )
+                    }
+                },
+                actions = {
+                    val context = LocalContext.current
+                    if (connections.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.exportAppConnectionsCsv(context) }) {
+                            Icon(
+                                Icons.Default.Download,
+                                contentDescription = "Download CSV",
+                                tint = CyberCyan
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkNavy)

@@ -1,5 +1,8 @@
 package com.example.netsecure.ui.viewmodel
 
+import android.content.Context
+import android.os.Environment
+import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.netsecure.data.ThreatIntelRepository
@@ -7,13 +10,23 @@ import com.example.netsecure.data.TrafficRepository
 import com.example.netsecure.data.model.AppTrafficInfo
 import com.example.netsecure.data.model.ThreatReport
 import com.example.netsecure.data.model.TrafficCategory
+import com.example.netsecure.logging.NetSecureLogger
 import com.example.netsecure.model.ConnectionDescriptor
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
+import java.io.OutputStreamWriter
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class AppDetailViewModel : ViewModel() {
 
@@ -68,5 +81,49 @@ class AppDetailViewModel : ViewModel() {
 
     fun refresh(packageName: String) {
         loadApp(packageName)
+    }
+
+    fun exportAppConnectionsCsv(context: Context) {
+        val conns = connections.value
+        val appName = appTraffic.value?.appName ?: "Unknown"
+
+        if (conns.isEmpty()) {
+            Toast.makeText(context, "No connections to export", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                if (!downloadsDir.exists()) downloadsDir.mkdirs()
+
+                val safeName = appName.replace(Regex("[^a-zA-Z0-9._-]"), "_")
+                val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                val fileName = "NetSecure_${safeName}_$timeStamp.csv"
+                val file = File(downloadsDir, fileName)
+
+                FileOutputStream(file).use { fos ->
+                    OutputStreamWriter(fos).use { writer ->
+                        writer.write("Protocol,L7 Protocol,Dest IP,Dest Port,Info (URL/SNI),Sent Bytes,Rcvd Bytes,Status\n")
+
+                        for (conn in conns) {
+                            val info = conn.info.replace("\"", "\"\"")
+                            writer.write("${conn.ipproto},${conn.l7proto},${conn.dst_ip},${conn.dst_port},\"$info\",${conn.sent_bytes},${conn.rcvd_bytes},${conn.status}\n")
+                        }
+                    }
+                }
+
+                NetSecureLogger.i(NetSecureLogger.TAG_SYSTEM, "App CSV saved to: ${file.absolutePath}")
+
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Saved to Downloads: $fileName", Toast.LENGTH_LONG).show()
+                }
+            } catch (e: Exception) {
+                NetSecureLogger.e(NetSecureLogger.TAG_SYSTEM, "Failed to export CSV: ${e.message}")
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Failed to export CSV: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
     }
 }
